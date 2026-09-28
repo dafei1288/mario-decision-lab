@@ -1,0 +1,30 @@
+{
+  "epochs_requested": 20,
+  "epochs_ran": 35,
+  "seconds": 1458.6,
+  "minutes": 24.31,
+  "imgsz": 256,
+  "batch": 16,
+  "model": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\yolov8n.pt",
+  "data": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\data.yaml",
+  "mAP50": 0.9902,
+  "mAP50-95": 0.9485,
+  "per_class": [
+    {
+      "class": "goomba",
+      "precision": 1.0,
+      "recall": 0.9871,
+      "mAP50": 0.995,
+      "mAP50-95": 0.9801
+    },
+    {
+      "class": "mario",
+      "precision": 0.9879,
+      "recall": 0.9388,
+      "mAP50": 0.9855,
+      "mAP50-95": 0.9169
+    }
+  ],
+  "weights": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\runs\\smb\\weights\\best.pt",
+  "runs_dir": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\runs\\smb"
+}

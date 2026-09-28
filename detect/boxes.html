@@ -1,0 +1,146 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>NES 真 YOLO 检测可视化</title>
+<style>
+  /* 与 nes/viewer.html 同源的布局与配色；画面区固定 2× 整数放大（512×480），
+     框画在**独立叠加 canvas** 上，且描边落在生物框**外侧**——不覆盖原画面一个像素。 */
+  :root { --ink:#0f1116; --panel:#161a22; --line:#262c38; --fg:#e8e6e3;
+          --accent:#4de1a0; --warn:#ff5d6c; --dim:#8b93a7; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ink); color:var(--fg);
+         font:14px/1.5 "Segoe UI",system-ui,"Microsoft YaHei",sans-serif; }
+  #wrap { display:flex; gap:14px; padding:14px; align-items:flex-start; }
+  #screen { position:relative; width:512px; height:480px; background:#000;
+            border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  #screen canvas { display:block; position:absolute; left:0; top:0;
+                   width:512px; height:480px; image-rendering:pixelated; }
+  #side { width:380px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+          padding:10px 14px; margin-bottom:10px; }
+  .title { font-size:11px; letter-spacing:.12em; color:var(--dim); text-transform:uppercase;
+           margin-bottom:6px; }
+  #dets { font-family:Consolas,monospace; font-size:13px; color:#c9d1d9; white-space:pre; }
+  #state { font-family:Consolas,monospace; font-size:13px; color:#c9d1d9; white-space:pre-line; }
+  #note { color:var(--dim); font-size:12px; }
+  .g { color:#2fff7a; } .r { color:#ff3b30; }
+</style>
+<body>
+<div id="wrap">
+  <div id="screen">
+    <canvas id="c" width="256" height="240"></canvas>
+    <canvas id="ov" width="512" height="480"></canvas>
+  </div>
+  <div id="side">
+    <div class="card">
+      <div class="title">YOLO 检测目标（结构化）</div>
+      <div id="dets">—</div>
+    </div>
+    <div class="card">
+      <div class="title">状态</div>
+      <div id="state">—</div>
+    </div>
+    <div class="card">
+      <div class="title">说明</div>
+      <div id="note">框来自 yolov8n（自监督 OAM 标注训练）。红=goomba，绿=mario。</div>
+    </div>
+  </div>
+</div>
+<script src="/nes/dist/jsnes.js"></script>
+<script>
+/* ---- 与 /nes/viewer.html 同源的模拟器封装（截屏/按键/步进/读内存）+ 新增 __boxes ---- */
+var nes = null, frameCount = 0, lastFrame = null, ready = false;
+
+function draw(fb) {
+  var ctx = document.getElementById('c').getContext('2d');
+  /* jsnes 帧缓冲是 0x00BBGGRR：B 高位、R 低位（实测天空 0x00ff7981 → 按 BGR 解才是蓝色） */
+  var data = new Uint8ClampedArray(256 * 240 * 4);
+  for (var i = 0; i < 256 * 240; i++) {
+    var v = fb[i];
+    data[i * 4] = v & 255; data[i * 4 + 1] = (v >> 8) & 255;
+    data[i * 4 + 2] = (v >> 16) & 255; data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(new ImageData(data, 256, 240), 0, 0);
+}
+
+window.__boot = function (romUrl, done) {
+  fetch(romUrl).then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+    var bytes = new Uint8Array(ab), s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    nes = new jsnes.NES({ onFrame: function (fb) { lastFrame = fb; frameCount++; draw(fb); },
+                          onAudioSample: null, sampleRate: 44100 });
+    nes.loadROM(s);
+    for (var i = 0; i < 60; i++) nes.frame();
+    window.__nes = nes; ready = true;
+    if (done) done();
+  });
+};
+window.__step = function (n) { for (var i = 0; i < n; i++) nes.frame(); return frameCount; };
+window.__step1 = function () { nes.frame(); return frameCount; };
+window.__hold = function (btns, n) {
+  for (var k = 0; k < 2; k++) nes.frame();
+  btns.forEach(function (b) { nes.buttonDown(1, jsnes.Controller['BUTTON_' + b]); });
+  if (window.__pad) window.__pad(btns);
+  for (var i = 0; i < n; i++) nes.frame();
+  btns.forEach(function (b) { nes.buttonUp(1, jsnes.Controller['BUTTON_' + b]); });
+  if (window.__pad) window.__pad([]);
+  return frameCount;
+};
+window.__set = function (btns, n) {
+  var all = ['A', 'B', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'START', 'SELECT'];
+  all.forEach(function (b) {
+    var on = btns.indexOf(b) >= 0;
+    if (on) nes.buttonDown(1, jsnes.Controller['BUTTON_' + b]);
+    else nes.buttonUp(1, jsnes.Controller['BUTTON_' + b]);
+  });
+  if (window.__pad) window.__pad(btns);
+  for (var i = 0; i < n; i++) nes.frame();
+  return frameCount;
+};
+window.__png = function () { return document.getElementById('c').toDataURL('image/png'); };
+window.__ram = function (a, n) { var o = [], m = nes.cpu.mem; for (var i = 0; i < n; i++) o.push(m[a + i]); return o; };
+window.__frameCount = function () { return frameCount; };
+window.__pad = function (buttons) {
+  var names = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'START', 'SELECT'];
+  names.forEach(function (n) {
+    var el = document.getElementById('k-' + n);
+    if (!el) return;
+    var lit = (buttons || []).indexOf(n) >= 0;
+    el.className = el.className.replace(' on', '') + (lit ? ' on' : '');
+  });
+};
+window.__ui = function (d) {                 // 保持与 viewer.html 同一入口（本页只用 status 文本）
+  document.getElementById('state').textContent = (d && d.state) || '—';
+};
+
+/* ---- 新增：把 [{x,y,w,h,cls,conf}]（256×240 画布像素坐标）画成框 + 类别标签 ---- */
+var BOX_COLOR = { goomba: '#ff3b30', mario: '#2fff7a' };
+window.__boxes = function (list) {
+  var ov = document.getElementById('ov'), ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, ov.width, ov.height);
+  var k = ov.width / 256;                                  // 画布 → 显示（2×）
+  var rows = [];
+  (list || []).forEach(function (b) {
+    var col = BOX_COLOR[b.cls] || '#ffd166';
+    var x = b.x * k, y = b.y * k, w = b.w * k, h = b.h * k;
+    /* 描边画在生物框**外侧**（-2px 起、线宽 2）⇒ 覆盖的是框外那圈像素，不压生物本身 */
+    ctx.lineWidth = 2; ctx.strokeStyle = col;
+    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+    var txt = b.cls + ' ' + (b.conf || 0).toFixed(2);
+    ctx.font = 'bold 12px Consolas, monospace';
+    var tw = ctx.measureText(txt).width + 8;
+    var ty = (y - 4) >= 14 ? y - 4 : y + h + 14;           // 上方放不下就放框下方
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(Math.max(0, x), ty - 12, tw, 15);
+    ctx.fillStyle = col;
+    ctx.fillText(txt, Math.max(0, x) + 4, ty);
+    rows.push('  ' + (b.cls === 'mario' ? 'mario ' : 'goomba') +
+              '  ' + String(Math.round(b.x)).padStart(3) + ',' + String(Math.round(b.y)).padStart(3) +
+              '  ' + Math.round(b.w) + 'x' + Math.round(b.h) +
+              '  conf=' + (b.conf || 0).toFixed(2));
+  });
+  document.getElementById('dets').textContent =
+    rows.length ? rows.join('\n') : '  （本帧没有检测到 goomba/mario）';
+  return rows.length;
+};
+</script>
+</body>

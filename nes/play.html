@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>NES 四步实验台</title>
+<body style="margin:0;background:#111">
+<canvas id="c" width="256" height="240" style="image-rendering:pixelated;width:512px;height:480px"></canvas>
+<script src="/nes/dist/jsnes.js"></script>
+<script>
+/* 极薄一层封装：把 jsnes 暴露成「截屏 / 按键 / 步进 / 读内存」四个动作，供外部驱动。 */
+var nes = null, frameCount = 0, lastFrame = null, ready = false;
+
+function draw(fb) {
+  var ctx = document.getElementById('c').getContext('2d');
+  /* jsnes 的帧缓冲打包是 0x00BBGGRR：B 在高位、R 在低位（实测天空像素 0x00ff7981
+     → 按 RGB 解是粉红（错），按 BGR 解是蓝（对））。所以必须逐像素按 BGR 拆。
+     如果直接 new Uint8ClampedArray(fb.buffer) 当 RGBA 用，还会得到 alpha=0 ⇒ 画布全透明显黑。 */
+  var data = new Uint8ClampedArray(256 * 240 * 4);
+  for (var i = 0; i < 256 * 240; i++) {
+    var v = fb[i];
+    data[i * 4] = v & 255;              // R
+    data[i * 4 + 1] = (v >> 8) & 255;   // G
+    data[i * 4 + 2] = (v >> 16) & 255;  // B
+    data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(new ImageData(data, 256, 240), 0, 0);
+}
+
+window.__boot = function (romUrl, done) {
+  fetch(romUrl).then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+    var bytes = new Uint8Array(ab), s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    nes = new jsnes.NES({
+      onFrame: function (fb) { lastFrame = fb; frameCount++; draw(fb); },
+      onAudioSample: null, sampleRate: 44100
+    });
+    nes.loadROM(s);
+    for (var i = 0; i < 60; i++) nes.frame();           // 开机 60 帧（真实主机也要等复位）
+    window.__nes = nes; ready = true;
+    if (done) done();
+  });
+};
+
+window.__step = function (n) { for (var i = 0; i < n; i++) nes.frame(); return frameCount; };
+window.__step1 = function () { nes.frame(); return frameCount; };   // 只推 1 帧、不改按键状态（逐帧录制用）
+
+window.__hold = function (btns, n) {
+  /* ★ 先跑 2 帧完全松开的帧：SMB 起跳是**边沿触发**，连续调用时"刚抬起就按下、中间不跑帧"
+     会被 jsnes 视为 A 一直按住 ⇒ 整局只跳一次（实测表现＝卡在水管前不动）。 */
+  for (var k = 0; k < 2; k++) nes.frame();
+  btns.forEach(function (b) { nes.buttonDown(1, jsnes.Controller['BUTTON_' + b]); });
+  for (var i = 0; i < n; i++) nes.frame();
+  btns.forEach(function (b) { nes.buttonUp(1, jsnes.Controller['BUTTON_' + b]); });
+  return frameCount;
+};
+
+window.__set = function (btns, n) {
+  /* 真手柄语义：把 8 个键设成目标状态，跑 n 帧，**不主动松开**。
+     这样"跨步按住 A"（长跳）才可能 —— 这是兜底/参照大脑能跳够高的前提。
+     反过来说：一个大脑若从不松开 A，它就永远只有第一次起跳（这属于它的决策后果，不是链路 bug）。 */
+  var all = ['A', 'B', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'START', 'SELECT'];
+  all.forEach(function (b) {
+    var on = btns.indexOf(b) >= 0;
+    if (on) nes.buttonDown(1, jsnes.Controller['BUTTON_' + b]);
+    else nes.buttonUp(1, jsnes.Controller['BUTTON_' + b]);
+  });
+  for (var i = 0; i < n; i++) nes.frame();
+  return frameCount;
+};
+
+window.__png = function () { return document.getElementById('c').toDataURL('image/png'); };
+window.__ram = function (a, n) {                         // 0x0000-0x07FF 是 CPU RAM（含镜像）
+  var o = [], m = nes.cpu.mem; for (var i = 0; i < n; i++) o.push(m[a + i]); return o;
+};
+window.__memRange = function (a, n) { return Array.from(nes.cpu.mem.slice(a, a + n)); };
+window.__frameCount = function () { return frameCount; };
+window.__ready = function () { return ready; };
+</script>

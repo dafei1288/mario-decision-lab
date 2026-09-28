@@ -1,0 +1,208 @@
+{
+  "weights": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\runs\\smb\\weights\\best.pt",
+  "conf": 0.25,
+  "iou_thr": 0.5,
+  "val_frames": 180,
+  "val_frames_with_gt": 172,
+  "frame_consistency": 0.9556,
+  "empty_gt_frames": 8,
+  "empty_gt_false_positive_frames": 0,
+  "per_class_iou_match": {
+    "goomba": {
+      "tp": 113,
+      "fp": 0,
+      "fn": 1,
+      "precision": 1.0,
+      "recall": 0.9912,
+      "f1": 0.9956
+    },
+    "mario": {
+      "tp": 142,
+      "fp": 10,
+      "fn": 5,
+      "precision": 0.9342,
+      "recall": 0.966,
+      "f1": 0.9498
+    }
+  },
+  "ultralytics_val": {
+    "mAP50": 0.965,
+    "mAP50_95": 0.9348,
+    "per_class": {
+      "goomba": {
+        "precision": 1.0,
+        "recall": 0.9908,
+        "mAP50": 0.995,
+        "mAP50-95": 0.9801
+      },
+      "mario": {
+        "precision": 1.0,
+        "recall": 0.931,
+        "mAP50": 0.935,
+        "mAP50-95": 0.8895
+      }
+    }
+  },
+  "failures": [
+    {
+      "frame": "00374",
+      "gt_boxes": 4,
+      "det_boxes": 6,
+      "detail": {
+        "goomba": {
+          "gt": 2,
+          "det": 2,
+          "missed": 0,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 2,
+          "det": 4,
+          "missed": 0,
+          "spurious": 2
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00374.png"
+    },
+    {
+      "frame": "00360",
+      "gt_boxes": 4,
+      "det_boxes": 4,
+      "detail": {
+        "goomba": {
+          "gt": 2,
+          "det": 2,
+          "missed": 0,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 2,
+          "det": 2,
+          "missed": 1,
+          "spurious": 1
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00360.png"
+    },
+    {
+      "frame": "00371",
+      "gt_boxes": 5,
+      "det_boxes": 6,
+      "detail": {
+        "goomba": {
+          "gt": 2,
+          "det": 2,
+          "missed": 0,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 3,
+          "det": 4,
+          "missed": 0,
+          "spurious": 1
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00371.png"
+    },
+    {
+      "frame": "00373",
+      "gt_boxes": 5,
+      "det_boxes": 5,
+      "detail": {
+        "goomba": {
+          "gt": 2,
+          "det": 2,
+          "missed": 0,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 3,
+          "det": 3,
+          "missed": 1,
+          "spurious": 1
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00373.png"
+    },
+    {
+      "frame": "00172",
+      "gt_boxes": 2,
+      "det_boxes": 4,
+      "detail": {
+        "goomba": {
+          "gt": 1,
+          "det": 1,
+          "missed": 0,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 1,
+          "det": 3,
+          "missed": 1,
+          "spurious": 3
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00172.png"
+    },
+    {
+      "frame": "00368",
+      "gt_boxes": 5,
+      "det_boxes": 5,
+      "detail": {
+        "goomba": {
+          "gt": 2,
+          "det": 2,
+          "missed": 0,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 3,
+          "det": 3,
+          "missed": 1,
+          "spurious": 1
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00368.png"
+    },
+    {
+      "frame": "00497",
+      "gt_boxes": 2,
+      "det_boxes": 1,
+      "detail": {
+        "goomba": {
+          "gt": 1,
+          "det": 0,
+          "missed": 1,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 1,
+          "det": 1,
+          "missed": 0,
+          "spurious": 0
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00497.png"
+    },
+    {
+      "frame": "00369",
+      "gt_boxes": 5,
+      "det_boxes": 5,
+      "detail": {
+        "goomba": {
+          "gt": 2,
+          "det": 2,
+          "missed": 0,
+          "spurious": 0
+        },
+        "mario": {
+          "gt": 3,
+          "det": 3,
+          "missed": 1,
+          "spurious": 1
+        }
+      },
+      "image": "D:\\working\\shot_video_space\\project_alice\\scratch\\game-probe\\detect\\dataset\\images\\val\\00369.png"
+    }
+  ]
+}

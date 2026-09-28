@@ -1,0 +1,6 @@
+torch>=2.0
+transformers>=4.40
+numpy
+opencv-python
+ultralytics>=8.0
+# Laya 依赖作者的 rl_agent_api（models/laya/ 内，HF 仓库快照自带）

@@ -1,0 +1,23 @@
+# 商业 ROM（任天堂版权）绝不入库；nova.nes 是 GPL-3.0 开源游戏，例外放行
+roms/*.nes
+!roms/nova.nes
+
+# 模型权重（842MB，huggingface-cli download convaiinnovations/laya --local-dir models/laya）
+models/*
+!models/README.md
+
+# 运行产物
+nes-play-*/
+runs/
+detect/runs/*
+!detect/runs/smb/
+detect/runs/smb/*
+!detect/runs/smb/weights/
+detect/out/
+detect/images/
+detect/labels/
+detect/oam/
+detect/preview/
+detect/probe/
+__pycache__/
+venv-*/

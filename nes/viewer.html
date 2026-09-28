@@ -1,0 +1,263 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>NES 决策可视化</title>
+<style>
+  :root { --ink:#0f1116; --panel:#161a22; --line:#262c38; --fg:#e8e6e3;
+          --accent:#4de1a0; --warn:#ff5d6c; --dim:#8b93a7; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ink); color:var(--fg);
+         font:14px/1.5 "Segoe UI",system-ui,"Microsoft YaHei",sans-serif; }
+  #wrap { display:flex; gap:14px; padding:14px; align-items:flex-start; }
+  #screen { background:#000; border:1px solid var(--line); border-radius:6px; }
+  #screen canvas { display:block; width:560px; height:525px; image-rendering:pixelated; }
+  #side { width:400px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+          padding:10px 14px; margin-bottom:10px; }
+  .title { font-size:11px; letter-spacing:.12em; color:var(--dim); text-transform:uppercase;
+           margin-bottom:6px; }
+  #decider { display:inline-block; padding:3px 10px; border-radius:999px; font-weight:600;
+             font-size:12px; background:#22303f; color:var(--accent); }
+  #decider.fallback { background:#3a2530; color:var(--warn); }
+  .cand { display:flex; align-items:center; gap:10px; margin:4px 0; }
+  .cand .name { width:118px; font-size:13px; color:var(--dim); }
+  .cand .bar { flex:1; height:16px; background:#0d1017; border-radius:4px; overflow:hidden; }
+  .cand .fill { height:100%; background:#33405a; }
+  .cand.chosen .name { color:var(--fg); font-weight:700; }
+  .cand.chosen .fill { background:var(--accent); }
+  .cand .p { width:52px; text-align:right; font-variant-numeric:tabular-nums; color:var(--dim); }
+  .cand.chosen .p { color:var(--accent); font-weight:700; }
+  #state { font-family:Consolas,monospace; font-size:13px; color:#c9d1d9; white-space:pre-line; }
+  #hist { font-family:Consolas,monospace; font-size:13px; color:var(--dim); word-break:break-all; }
+  #note { color:var(--dim); font-size:12px; margin-top:8px; }
+
+  /* ---- 手柄按键指示 ---- */
+  #pad { position:relative; height:168px; }
+  .key { position:absolute; border:1px solid var(--line); background:#0d1017; color:var(--dim);
+         font:600 15px/1 "Segoe UI",sans-serif; display:flex; align-items:center; justify-content:center;
+         transition:background .06s, color .06s, box-shadow .06s; }
+  .key.on { background:var(--accent); color:#06231a; border-color:var(--accent);
+            box-shadow:0 0 14px rgba(77,225,160,.55); }
+  .dpad .key { width:44px; height:44px; border-radius:6px; }
+  .dpad .up    { left:48px; top:0; }
+  .dpad .left  { left:4px;  top:44px; }
+  .dpad .right { left:92px; top:44px; }
+  .dpad .down  { left:48px; top:88px; }
+  .dpad .hub   { position:absolute; left:48px; top:44px; width:44px; height:44px; background:#0a0d13;
+                 border:1px solid var(--line); border-radius:6px; }
+  .dpad .lbl   { position:absolute; left:0; top:140px; width:140px; text-align:center;
+                 font-size:11px; color:var(--dim); letter-spacing:.1em; }
+  .ab .key { width:52px; height:52px; border-radius:50%; font-size:17px; }
+  .ab .b { left:196px; top:56px; }
+  .ab .a { left:252px; top:8px; }
+  .middle .key { height:22px; border-radius:11px; font-size:10px; letter-spacing:.08em; }
+  .middle .sel { left:196px; top:126px; width:56px; }
+  .middle .sta { left:262px; top:126px; width:56px; }
+
+  /* 决策标签：贴在亮键旁，按决策者变色 */
+  #chip { position:absolute; left:160px; top:150px; max-width:230px; padding:3px 9px; border-radius:8px;
+          font-size:12px; font-weight:600; white-space:nowrap; opacity:0; transition:opacity .08s; }
+  #chip.show { opacity:1; }
+  #chip.model { background:#123a2a; color:var(--accent); border:1px solid var(--accent); }
+  #chip.script { background:#3a2f18; color:#ffc457; border:1px solid #ffc457; }
+  #padcap { margin-top:6px; font-size:13px; }
+  #padcap .act { color:var(--fg); font-weight:600; }
+  #padcap .keys { font-family:Consolas,monospace; color:var(--dim); }
+  #padcap .p { color:var(--accent); font-weight:700; }
+</style>
+<body>
+<div id="wrap">
+  <div id="screen" style="position:relative">
+    <canvas id="c" width="256" height="240"></canvas>
+    <canvas id="ov" width="560" height="525" style="position:absolute;left:0;top:0;pointer-events:none"></canvas>
+  </div>
+  <div id="side">
+    <div class="card">
+      <div class="title">谁在做决定</div>
+      <span id="decider">—</span>
+      <div id="note"></div>
+    </div>
+    <div class="card">
+      <div class="title">候选动作 · 模型打分</div>
+      <div id="cands"></div>
+    </div>
+    <div class="card">
+      <div class="title">按键指示 · 手柄</div>
+      <div id="pad">
+        <div id="chip"></div>
+        <div class="dpad">
+          <div class="key up"    id="k-UP">▲</div>
+          <div class="key left"  id="k-LEFT">◀</div>
+          <div class="key right" id="k-RIGHT">▶</div>
+          <div class="key down"  id="k-DOWN">▼</div>
+          <div class="hub"></div>
+          <div class="lbl">方向键</div>
+        </div>
+        <div class="ab">
+          <div class="key round b" id="k-B">B</div>
+          <div class="key round a" id="k-A">A</div>
+        </div>
+        <div class="middle">
+          <div class="key sel" id="k-SELECT">SELECT</div>
+          <div class="key sta" id="k-START">START</div>
+        </div>
+      </div>
+      <div id="padcap"><span class="keys">—</span></div>
+    </div>
+    <div class="card">
+      <div class="title">状态 / 进度</div>
+      <div id="state">—</div>
+    </div>
+    <div class="card">
+      <div class="title">决策历史</div>
+      <div id="hist">—</div>
+    </div>
+  </div>
+</div>
+<script src="/nes/dist/jsnes.js"></script>
+<script>
+/* 与 play.html 同源的模拟器封装：截屏 / 按键 / 步进 / 读内存 */
+var nes = null, frameCount = 0, lastFrame = null, ready = false;
+
+function draw(fb) {
+  var ctx = document.getElementById('c').getContext('2d');
+  /* jsnes 帧缓冲是 0x00BBGGRR：B 高位、R 低位（实测天空 0x00ff7981 → 按 BGR 解才是蓝色） */
+  var data = new Uint8ClampedArray(256 * 240 * 4);
+  for (var i = 0; i < 256 * 240; i++) {
+    var v = fb[i];
+    data[i * 4] = v & 255; data[i * 4 + 1] = (v >> 8) & 255;
+    data[i * 4 + 2] = (v >> 16) & 255; data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(new ImageData(data, 256, 240), 0, 0);
+}
+
+window.__boot = function (romUrl, done) {
+  fetch(romUrl).then(function (r) { return r.arrayBuffer(); }).then(function (ab) {
+    var bytes = new Uint8Array(ab), s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    nes = new jsnes.NES({ onFrame: function (fb) { lastFrame = fb; frameCount++; draw(fb); },
+                          onAudioSample: null, sampleRate: 44100 });
+    nes.loadROM(s);
+    for (var i = 0; i < 60; i++) nes.frame();
+    window.__nes = nes; ready = true;
+    if (done) done();
+  });
+};
+window.__step = function (n) { for (var i = 0; i < n; i++) nes.frame(); return frameCount; };
+window.__step1 = function () { nes.frame(); return frameCount; };   // 只推 1 帧、不改按键状态（逐帧录制用）
+window.__hold = function (btns, n) {
+  /* ★ 关键：先跑 2 帧**完全松开**的帧，再按下。
+     原因：SMB 的跳是**边沿触发**，而连续调用 __hold 时上一轮刚抬起就立刻按下、
+     中间不跑帧 ⇒ jsnes 认为 A 一直按住 ⇒ 整局只跳一次。
+     （本目录实测踩过：表现为"马里奥卡在水管前不动"。） */
+  for (var k = 0; k < 2; k++) nes.frame();
+  btns.forEach(function (b) { nes.buttonDown(1, jsnes.Controller['BUTTON_' + b]); });
+  if (window.__pad) window.__pad(btns);            // 手柄灯＝真实按键状态（与画面同帧）
+  for (var i = 0; i < n; i++) nes.frame();
+  btns.forEach(function (b) { nes.buttonUp(1, jsnes.Controller['BUTTON_' + b]); });
+  if (window.__pad) window.__pad([]);               // __hold 结束会松键，灯也要跟着灭
+  return frameCount;
+};
+window.__set = function (btns, n) {
+  /* 真手柄语义：把 8 个键设成目标状态，跑 n 帧，**不主动松开**。
+     这样"跨步按住 A"（长跳）才可能 —— 这是兜底/参照大脑能跳够高的前提。
+     反过来说：一个大脑若从不松开 A，它就永远只有第一次起跳（这属于它的决策后果，不是链路 bug）。 */
+  var all = ['A', 'B', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'START', 'SELECT'];
+  all.forEach(function (b) {
+    var on = btns.indexOf(b) >= 0;
+    if (on) nes.buttonDown(1, jsnes.Controller['BUTTON_' + b]);
+    else nes.buttonUp(1, jsnes.Controller['BUTTON_' + b]);
+  });
+  if (window.__pad) window.__pad(btns);            // 手柄灯＝真实按键状态（与画面同帧）
+  for (var i = 0; i < n; i++) nes.frame();
+  return frameCount;
+};
+
+window.__png = function () { return document.getElementById('c').toDataURL('image/png'); };
+window.__ram = function (a, n) { var o = [], m = nes.cpu.mem; for (var i = 0; i < n; i++) o.push(m[a + i]); return o; };
+window.__frameCount = function () { return frameCount; };
+
+/* ---- 可视化层：由外部驱动每周期调用一次 ---- */
+window.__pad = function (buttons) {
+  var names = ['UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'START', 'SELECT'];
+  names.forEach(function (n) {
+    var el = document.getElementById('k-' + n);
+    if (!el) return;
+    var lit = (buttons || []).indexOf(n) >= 0;
+    el.className = el.className.replace(' on', '') + (lit ? ' on' : '');
+  });
+};
+
+
+/* ---- YOLO 检测框叠加层（移植自 detect/boxes.html）---- */
+var BOX_COLOR = { goomba: '#ff3b30', mario: '#2fff7a' };
+window.__boxes = function (list) {
+  var ov = document.getElementById('ov');
+  if (!ov) return;
+  var ctx = ov.getContext('2d');
+  ctx.clearRect(0, 0, ov.width, ov.height);
+  var k = ov.width / 256;
+  (list || []).forEach(function (b) {
+    var col = BOX_COLOR[b.cls] || '#ffd166';
+    var x = b.x * k, y = b.y * k, w = b.w * k, h = b.h * k;
+    ctx.fillStyle = col.replace(')', ', 0.18)').replace('rgb', 'rgba');
+    ctx.globalAlpha = 0.18; ctx.fillStyle = col; ctx.fillRect(x - 3, y - 3, w + 6, h + 6); ctx.globalAlpha = 1;
+    ctx.lineWidth = 5; ctx.strokeStyle = col;
+    ctx.strokeRect(x - 3, y - 3, w + 6, h + 6);
+    var txt = b.cls + ' ' + (b.conf || 0).toFixed(2);
+    ctx.font = 'bold 20px Consolas, monospace';
+    var tw = ctx.measureText(txt).width + 12;
+    var ty = (y - 7) >= 24 ? y - 7 : y + h + 22;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(Math.max(0, x) - 3, ty - 20, tw, 24);
+    ctx.fillStyle = col;
+    ctx.fillText(txt, Math.max(0, x) + 3, ty);
+  });
+};
+
+window.__ui = function (d) {
+  /* 手柄灯不在这里点：它由 __set 按**真实按键状态**同步（与画面同帧） */
+
+  /* 决策标签：直接标在按下的键旁边，谁按的一眼可见（模型=绿 / 脚本兜底=琥珀） */
+  var isModel = d.deciderIndex === 'model';
+  var chip = document.getElementById('chip');
+  var keys = (d.buttons || []);
+  chip.className = 'show ' + (isModel ? 'model' : 'script');
+  if (keys.length) {
+    chip.style.left = (keys.indexOf('RIGHT') >= 0 || keys.indexOf('LEFT') >= 0) ? '150px' : '196px';
+    chip.textContent = (isModel ? 'Laya 决策' : '脚本兜底')
+      + ' · ' + (d.actionText || keys.join('+'));
+  } else {
+    chip.style.left = '48px';
+    chip.textContent = (isModel ? 'Laya 决策' : '脚本兜底') + ' · ' + (d.actionText || '不出手');
+  }
+  document.getElementById('padcap').innerHTML =
+      '<span class="act">' + (d.actionText || '—') + '</span>'
+    + ' <span class="keys">' + (keys.length ? '（' + keys.join(' + ') + '）' : '（不放键）') + '</span>'
+    + (d.topProb !== null && d.topProb !== undefined
+        ? ' <span class="p">p=' + (d.topProb * 100).toFixed(1) + '%</span>' : '')
+    + (d.motor ? '<br><span class="motor">' + d.motor + '</span>' : '');
+  var dec = document.getElementById('decider');
+  dec.textContent = d.decider;
+  dec.className = d.fallback ? 'fallback' : '';
+  document.getElementById('note').textContent = d.note || '';
+
+  var box = document.getElementById('cands');
+  box.innerHTML = '';
+  var hasP = d.candidates.some(function (c) { return c.p !== null && c.p !== undefined; });
+  document.getElementById('cands').style.opacity = hasP ? '1' : '0.55';
+  if (!hasP) document.getElementById('cands').title = '本次决策者不输出概率（脚本策略）';
+  var maxp = Math.max.apply(null, d.candidates.map(function (c) { return c.p || 0; }).concat([0.0001]));
+  d.candidates.forEach(function (c) {
+    var row = document.createElement('div');
+    row.className = 'cand' + (c.id === d.choice ? ' chosen' : '');
+    row.innerHTML = '<div class="name">' + c.text + '</div>'
+      + '<div class="bar"><div class="fill" style="width:' + Math.round(100 * (c.p || 0) / maxp) + '%"></div></div>'
+      + '<div class="p">' + (c.p === null || c.p === undefined ? 'n/a' : (c.p * 100).toFixed(1) + '%') + '</div>';
+    box.appendChild(row);
+  });
+
+  document.getElementById('state').textContent = d.state;
+  document.getElementById('hist').textContent = (d.history || []).join('  ');
+};
+</script>
+</body>

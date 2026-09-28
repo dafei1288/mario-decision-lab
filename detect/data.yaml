@@ -1,0 +1,8 @@
+# 自监督标注：真值 = OAM（见 oamlabel.py）。classes 只有两类，其余 tile 未定案 ⇒ 不标。
+path: dataset
+train: images/train
+val: images/val
+nc: 2
+names:
+  0: goomba
+  1: mario

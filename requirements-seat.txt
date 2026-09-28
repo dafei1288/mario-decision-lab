@@ -1,0 +1,2 @@
+playwright>=1.40
+# 录屏转码需要系统 PATH 里有 ffmpeg（webm→mp4、显式 bt709）
