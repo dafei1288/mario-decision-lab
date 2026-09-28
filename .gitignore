@@ -8,7 +8,7 @@ models/*
 
 # 运行产物
 nes-play-*/
-runs/
+/runs/
 detect/runs/*
 !detect/runs/smb/
 detect/runs/smb/*
